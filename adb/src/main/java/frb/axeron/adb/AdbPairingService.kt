@@ -20,6 +20,7 @@ import frb.axeron.api.core.AxeronSettings
 import frb.axeron.api.core.Starter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import rikka.core.ktx.unsafeLazy
 import java.net.ConnectException
@@ -190,7 +191,7 @@ class AdbPairingService : Service() {
                 }
             }.onSuccess {
                 Log.i(TAG, "Auto connect start success")
-                handleResult(true, null)
+                handleResult(true, null, true)
             }.onFailure {
                 Log.w(TAG, "Auto connect start failed", it)
             }
@@ -216,26 +217,39 @@ class AdbPairingService : Service() {
             }.onFailure {
                 handleResult(false, it)
             }.onSuccess {
-                handleResult(it, null)
+                handleResult(it, null, false)
             }
         }
 
         return workingNotification
     }
 
-    private fun handleResult(success: Boolean, exception: Throwable?) {
+    private fun handleResult(success: Boolean, exception: Throwable?, isConnect: Boolean = false) {
         stopForeground(STOP_FOREGROUND_REMOVE)
 
         val title: String
         val text: String?
 
         if (success) {
-            Log.i(TAG, "Pair succeed")
-
-            title = "Axeron activated"
-            text = "Service is now running"
-
-            stopSearch()
+            if (isConnect) {
+                Log.i(TAG, "Connect succeed")
+                title = "Axeron activated"
+                text = "Service is now running"
+                stopSearch()
+            } else {
+                Log.i(TAG, "Pair succeed")
+                title = "Pairing successful"
+                text = "Waiting for connection..."
+                adbMdns?.stop()
+                // Keep adbConnectMdns running
+                CoroutineScope(Dispatchers.Main).launch {
+                    delay(30000)
+                    if (started) {
+                        stopSearch()
+                        stopSelf()
+                    }
+                }
+            }
         } else {
             title = "Pairing failed"
 
@@ -259,6 +273,7 @@ class AdbPairingService : Service() {
             } else {
                 Log.w(TAG, "Pair failed")
             }
+            stopSearch()
         }
 
         getSystemService(NotificationManager::class.java).notify(
@@ -275,7 +290,16 @@ class AdbPairingService : Service() {
                 }
                 .build()
         )
-        stopSelf()
+
+        if (isConnect && success) {
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(3000)
+                getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+                stopSelf()
+            }
+        } else if (!success) {
+            stopSelf()
+        }
     }
 
     private val stopNotificationAction by unsafeLazy {

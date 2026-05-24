@@ -245,10 +245,18 @@ class ActivateViewModel : ViewModel() {
         resetStatus()
 
         val resultChannel = kotlinx.coroutines.channels.Channel<AdbStateInfo>(1)
-        AdbStarter.startAdbWireless(context) {
-            resultChannel.trySend(it)
+        val job = launch {
+            AdbStarter.startAdbWireless(context) {
+                resultChannel.trySend(it)
+            }
         }
-        resultChannel.receive()
+
+        val result = withTimeoutOrNull(15000) {
+            resultChannel.receive()
+        } ?: AdbStateInfo.Failed("Timeout waiting for connection")
+
+        job.cancel()
+        result
     }
 
     suspend fun startAdbTcp(

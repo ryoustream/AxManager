@@ -73,6 +73,7 @@ import frb.axeron.manager.ui.util.ClipboardUtil
 import frb.axeron.manager.ui.viewmodel.ActivateViewModel
 import frb.axeron.manager.ui.viewmodel.ViewModelGlobal
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import rikka.compatibility.DeviceCompatibility
 
@@ -302,6 +303,11 @@ fun WirelessDebuggingCard(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         scope.launch {
+            delay(500)
+            if (activateViewModel.axeronInfo.isRunning()) {
+                activateViewModel.setTryToActivate(false)
+                return@launch
+            }
             loadingDialog.withLoading {
                 val ai = activateViewModel.startAdbWireless(context)
                 if (ai is AdbStateInfo.Success) {
