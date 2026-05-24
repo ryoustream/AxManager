@@ -34,7 +34,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -298,35 +297,39 @@ class ActivateViewModel : ViewModel() {
 
 
     @RequiresApi(Build.VERSION_CODES.R)
-    fun startPairingService(context: Context) = runBlocking(Dispatchers.IO) {
-        if (!isNotificationEnabled) return@runBlocking
-        setLaunchDevSettings(true)
+    fun startPairingService(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            if (!isNotificationEnabled) return@launch
+            setLaunchDevSettings(true)
 
-        val intent = AdbPairingService.startIntent(context)
-        try {
-            context.startForegroundService(intent)
-        } catch (e: Throwable) {
-            Log.e("AxManager", "startForegroundService", e)
+            val intent = AdbPairingService.startIntent(context)
+            try {
+                context.startForegroundService(intent)
+            } catch (e: Throwable) {
+                Log.e("AxManager", "startForegroundService", e)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && e is ForegroundServiceStartNotAllowedException
-            ) {
-                val mode = context.getSystemService(AppOpsManager::class.java)
-                    .noteOpNoThrow(
-                        "android:start_foreground",
-                        android.os.Process.myUid(),
-                        context.packageName,
-                        null,
-                        null
-                    )
-                if (mode == AppOpsManager.MODE_ERRORED) {
-                    Toast.makeText(
-                        context,
-                        "OP_START_FOREGROUND is denied. What are you doing?",
-                        Toast.LENGTH_LONG
-                    ).show()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && e is ForegroundServiceStartNotAllowedException
+                ) {
+                    val mode = context.getSystemService(AppOpsManager::class.java)
+                        .noteOpNoThrow(
+                            "android:start_foreground",
+                            android.os.Process.myUid(),
+                            context.packageName,
+                            null,
+                            null
+                        )
+                    if (mode == AppOpsManager.MODE_ERRORED) {
+                        withContext(Dispatchers.Main) {
+                            Toast.makeText(
+                                context,
+                                "OP_START_FOREGROUND is denied. What are you doing?",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    context.startService(intent)
                 }
-                context.startService(intent)
             }
         }
     }
