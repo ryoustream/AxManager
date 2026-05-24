@@ -18,7 +18,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("frb-project")
+        }
         release {
+            signingConfig = signingConfigs.getByName("frb-project")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
